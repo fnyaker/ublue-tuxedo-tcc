@@ -1,0 +1,192 @@
+name: Build Custom Images
+
+on:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '05 10 * * *'  # 10:05am UTC everyday
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/README.md'
+  workflow_dispatch:
+
+env:
+  IMAGE_DESC: "My Customized Universal Blue Image"
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
+  ARTIFACTHUB_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.brand_name}}-${{ inputs.stream_name }}
+  cancel-in-progress: true
+
+jobs:
+  generate-matrix:
+    name: Generate Build Matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Find Containerfiles and create matrix
+        id: set-matrix
+        run: |
+          # Find all Containerfile files under the Containerfiles directory.
+          files=$(find Containerfiles -type f -name Containerfile)
+          echo "Found containerfiles:"
+          echo "$files"
+          
+          matrix_entries="[]"
+          while IFS= read -r file; do
+            # Remove the leading "Containerfiles/" part.
+            relative=${file#Containerfiles/}
+            # Get the directory containing the Containerfile (e.g., "aurora/base" or "bazzite/deck")
+            dir=$(dirname "$relative")
+            
+            # Split the directory path into parts.
+            IFS='/' read -r -a parts <<< "$dir"
+            # If the last part is "base", remove it.
+            if [ "${parts[-1]}" = "base" ]; then
+              unset 'parts[${#parts[@]}-1]'
+            fi
+            # Join the remaining parts with a hyphen.
+            if [ ${#parts[@]} -gt 0 ]; then
+              joined=$(IFS=-; echo "${parts[*]}")
+            else
+              joined="default"
+            fi
+            # Prefix with "tuxedo-"
+            image_name="tuxedo-${joined}"
+            
+            # Build a JSON entry for this Containerfile.
+            entry=$(jq -n --arg ctx "Containerfiles/$dir" --arg file "$file" --arg name "$image_name" '{context: $ctx, containerfile: $file, image_name: $name}')
+            matrix_entries=$(echo "$matrix_entries" | jq --argjson entry "$entry" '. + [$entry]')
+          done <<< "$files"
+
+          echo "Matrix is:"
+          echo "$matrix_entries"
+          # If no Containerfile was found (matrix_entries is still []), exit with error.
+          if [ "$matrix_entries" = "[]" ]; then
+            echo "No Containerfiles found. Exiting."
+            exit 1
+          fi
+          # Set the output using the GITHUB_OUTPUT file variable.
+          echo "matrix<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$matrix_entries" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+  build_push:
+    name: Build and push images
+    needs: generate-matrix
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      IMAGE_DESC: "My Customized Universal Blue Image"
+      IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
+      ARTIFACTHUB_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get current date
+        id: date
+        run: |
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Image Metadata
+        uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          tags: |
+            type=raw,value=latest
+            type=raw,value=latest.{{date 'YYYYMMDD'}}
+            type=raw,value={{date 'YYYYMMDD'}}
+            type=sha,enable=${{ github.event_name == 'pull_request' }}
+            type=ref,event=pr
+          labels: |
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/${{ github.repository_owner }}/${{ matrix.image_name }}/refs/heads/main/README.md
+            org.opencontainers.image.created=${{ steps.date.outputs.date }}
+            org.opencontainers.image.description=${{ env.IMAGE_DESC }}
+            org.opencontainers.image.documentation=https://raw.githubusercontent.com/${{ github.repository_owner }}/${{ matrix.image_name }}/refs/heads/main/README.md
+            org.opencontainers.image.source=https://github.com/${{ github.repository_owner }}/${{ matrix.image_name }}/blob/main/Containerfile
+            org.opencontainers.image.title=${{ matrix.image_name }}
+            org.opencontainers.image.url=https://github.com/${{ github.repository_owner }}/${{ matrix.image_name }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.version=latest
+            io.artifacthub.package.deprecated=false
+            io.artifacthub.package.keywords=bootc,ublue,universal-blue
+            io.artifacthub.package.license=Apache-2.0
+            io.artifacthub.package.logo-url=${{ env.ARTIFACTHUB_LOGO_URL }}
+            io.artifacthub.package.prerelease=false
+            containers.bootc=1
+          sep-tags: " "
+          sep-annotations: " "
+
+      - name: Build Image
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: ${{ matrix.containerfile }}
+          image: ${{ matrix.image_name }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          oci: false
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Registry
+        id: registry_case
+        uses: ASzc/change-string-case-action@v6
+        with:
+          string: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Lowercase Image
+        id: image_case
+        uses: ASzc/change-string-case-action@v6
+        with:
+          string: ${{ matrix.image_name }}
+
+      - name: Push To GHCR
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          registry: ${{ steps.registry_case.outputs.lowercase }}
+          image: ${{ steps.image_case.outputs.lowercase }}
+          tags: ${{ steps.metadata.outputs.tags }}
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign container image
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          IMAGE_FULL="${{ steps.registry_case.outputs.lowercase }}/${{ steps.image_case.outputs.lowercase }}"
+          for tag in ${{ steps.metadata.outputs.tags }}; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY $IMAGE_FULL:$tag
+          done
+        env:
+          TAGS: ${{ steps.push.outputs.digest }}
+          COSIGN_EXPERIMENTAL: false
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
