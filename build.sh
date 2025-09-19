@@ -60,6 +60,11 @@ cd tuxedo-yt6801-kmod
 # Build the yt6801 kmod
 ./build.sh
 
+# Debug: List what was actually built
+echo "=== YT6801 Build Results ==="
+ls -la ~/rpmbuild/RPMS/${ARCH}/
+echo "=== End Build Results ==="
+
 # Get the built RPM filename (note: package is named tuxedo-yt6801-kmod, not kmod-tuxedo-yt6801)
 YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm)
 
@@ -77,6 +82,32 @@ else
     # Install the rebuilt yt6801 driver
     rpm-ostree install "${REBUILT_YT6801_RPM}"
 fi
+
+# Now build the actual kernel module for the current kernel
+echo "Building yt6801 kernel module for current kernel..."
+
+# First, let's see what akmod packages are available
+echo "Available akmod packages:"
+rpm -qa | grep akmod
+
+# Try to build with different possible names
+for kmod_name in "tuxedo-yt6801" "yt6801" "tuxedo-yt6801-kmod"; do
+    echo "Trying to build kmod: $kmod_name"
+    if akmods --force --kernels "${KERNEL_VERSION}" --kmod "$kmod_name" 2>/dev/null; then
+        echo "Successfully built $kmod_name"
+        break
+    else
+        echo "Failed to build $kmod_name"
+    fi
+done
+
+# Verify the module was built
+echo "Checking for yt6801 module..."
+find /lib/modules -name "*yt6801*" -o -name "*tuxedo-yt6801*" | head -5
+
+# Also check what modules are available
+echo "All available modules in /lib/modules/${KERNEL_VERSION}:"
+find /lib/modules/${KERNEL_VERSION} -name "*.ko*" | grep -i yt6801 || echo "No yt6801 modules found"
 
 cd /tmp
 
