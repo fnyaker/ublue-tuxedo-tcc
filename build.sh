@@ -51,11 +51,7 @@ KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
 
 akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 
-# Build and install tuxedo-yt6801 drivers
-cd /tmp
 
-git clone https://github.com/theCalcaholic/tuxedo-yt6801-kmod
-cd tuxedo-yt6801-kmod
 
 # Build and install tuxedo-yt6801 drivers
 cd /tmp
