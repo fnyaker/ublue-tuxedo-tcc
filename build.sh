@@ -25,6 +25,7 @@ rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
 rpm-ostree install kmodtool
 rpm-ostree install rpmrebuild
+rpm-ostree install curl
 rpm-ostree install gcc make kernel-devel
 
 export HOME=/tmp
@@ -56,34 +57,43 @@ akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 # Build and install tuxedo-yt6801 drivers
 cd /tmp
 
-git clone https://github.com/theCalcaholic/tuxedo-yt6801-kmod
-cd tuxedo-yt6801-kmod
+# Use the official Tuxedo GitLab source as specified in the spec file
+echo "Downloading official tuxedo-yt6801 source from GitLab..."
+YT6801_VERSION="1.0.30tux2"
+YT6801_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-yt6801/-/archive/v${YT6801_VERSION}/tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
 
-# Instead of using their build script, let's manually build the module following the spec file approach
+# Download and extract the source
+curl -L "${YT6801_URL}" -o "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
+tar -xzf "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
+
+# Rename to match what we expect (the tar might extract to tuxedo-yt6801-v1.0.30tux2-<hash>)
+YT6801_EXTRACTED_DIR=$(find . -maxdepth 1 -name "tuxedo-yt6801-v${YT6801_VERSION}*" -type d | head -1)
+if [ -z "$YT6801_EXTRACTED_DIR" ]; then
+    echo "Failed to find extracted directory"
+    exit 1
+fi
+
+mv "$YT6801_EXTRACTED_DIR" "tuxedo-yt6801-v${YT6801_VERSION}"
+cd "tuxedo-yt6801-v${YT6801_VERSION}"
+
+echo "Source directory contents:"
+ls -la
+
+# Follow the exact same process as the spec file
 echo "Building yt6801 module manually for kernel ${KERNEL_VERSION}..."
 
-# Create build directory
-BUILD_DIR="/tmp/yt6801_build_${KERNEL_VERSION}"
+# Create build directory following spec file pattern
+BUILD_DIR="/tmp/_kmod_build_${KERNEL_VERSION}"
 mkdir -p "${BUILD_DIR}"
 
-# Copy source files
-echo "Checking repository structure..."
-ls -la
-echo "Contents of src directory (if it exists):"
-ls -la src/ || echo "No src directory found"
-
-# Let's check what directories/files are available
+# Copy the src directory as the spec file does
 if [ -d "src" ]; then
-    echo "Found src directory, copying files..."
+    echo "Copying src directory to build location..."
     cp -a src/* "${BUILD_DIR}/"
-elif [ -f "Makefile" ]; then
-    echo "Found Makefile in root, copying all source files..."
-    cp -a * "${BUILD_DIR}/"
 else
-    echo "Looking for source files..."
-    find . -name "*.c" -o -name "*.h" -o -name "Makefile" | head -10
-    echo "Copying all files to build directory..."
-    cp -a * "${BUILD_DIR}/"
+    echo "ERROR: No src directory found in the official source!"
+    ls -la
+    exit 1
 fi
 
 # Build the module for our specific kernel
