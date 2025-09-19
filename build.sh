@@ -57,29 +57,15 @@ akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 # Build and install tuxedo-yt6801 drivers
 cd /tmp
 
-# Use the official Tuxedo GitLab source as specified in the spec file
-echo "Downloading official tuxedo-yt6801 source from GitLab..."
-YT6801_VERSION="1.0.30tux2"
-YT6801_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-yt6801/-/archive/v${YT6801_VERSION}/tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
-
-# Download and extract the source
-curl -L "${YT6801_URL}" -o "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
-tar -xzf "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
-
-# Find the extracted directory (it should be tuxedo-yt6801-v1.0.30tux2)
-YT6801_EXTRACTED_DIR=$(find . -maxdepth 1 -name "tuxedo-yt6801-v${YT6801_VERSION}*" -type d | head -1)
-if [ -z "$YT6801_EXTRACTED_DIR" ]; then
-    echo "Failed to find extracted directory"
-    exit 1
-fi
-
-# Just cd into the directory (no need to rename if it's already correct)
-cd "$YT6801_EXTRACTED_DIR"
+# Use the correct fixed repository that works with newer kernels (6.15+)
+echo "Cloning fixed yt6801 repository with kernel 6.15+ compatibility..."
+git clone https://github.com/h4rm00n/yt6801-linux-driver
+cd yt6801-linux-driver
 
 echo "Source directory contents:"
 ls -la
 
-# Follow the exact same process as the spec file
+# Follow the same build process as the spec file
 echo "Building yt6801 module manually for kernel ${KERNEL_VERSION}..."
 
 # Create build directory following spec file pattern
@@ -91,9 +77,12 @@ if [ -d "src" ]; then
     echo "Copying src directory to build location..."
     cp -a src/* "${BUILD_DIR}/"
 else
-    echo "ERROR: No src directory found in the official source!"
-    ls -la
-    exit 1
+    echo "No src directory found, looking for source files in root..."
+    # Some repositories might have source files in the root
+    find . -name "*.c" -o -name "*.h" -o -name "Makefile" | head -10
+    echo "Copying source files to build directory..."
+    # Copy C files, headers, and Makefile
+    find . -maxdepth 1 \( -name "*.c" -o -name "*.h" -o -name "Makefile" \) -exec cp {} "${BUILD_DIR}/" \;
 fi
 
 # Build the module for our specific kernel
