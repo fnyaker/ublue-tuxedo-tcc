@@ -66,15 +66,15 @@ YT6801_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-yt680
 curl -L "${YT6801_URL}" -o "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
 tar -xzf "tuxedo-yt6801-v${YT6801_VERSION}.tar.gz"
 
-# Rename to match what we expect (the tar might extract to tuxedo-yt6801-v1.0.30tux2-<hash>)
+# Find the extracted directory (it should be tuxedo-yt6801-v1.0.30tux2)
 YT6801_EXTRACTED_DIR=$(find . -maxdepth 1 -name "tuxedo-yt6801-v${YT6801_VERSION}*" -type d | head -1)
 if [ -z "$YT6801_EXTRACTED_DIR" ]; then
     echo "Failed to find extracted directory"
     exit 1
 fi
 
-mv "$YT6801_EXTRACTED_DIR" "tuxedo-yt6801-v${YT6801_VERSION}"
-cd "tuxedo-yt6801-v${YT6801_VERSION}"
+# Just cd into the directory (no need to rename if it's already correct)
+cd "$YT6801_EXTRACTED_DIR"
 
 echo "Source directory contents:"
 ls -la
