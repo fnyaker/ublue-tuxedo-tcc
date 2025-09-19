@@ -57,78 +57,45 @@ cd /tmp
 git clone https://github.com/theCalcaholic/tuxedo-yt6801-kmod
 cd tuxedo-yt6801-kmod
 
-# Build the yt6801 kmod
-./build.sh
+# Build and install tuxedo-yt6801 drivers
+cd /tmp
 
-# Debug: List what was actually built
-echo "=== YT6801 Build Results ==="
-ls -la ~/rpmbuild/RPMS/${ARCH}/
-echo "=== End Build Results ==="
+git clone https://github.com/theCalcaholic/tuxedo-yt6801-kmod
+cd tuxedo-yt6801-kmod
 
-# Check what files are in the tuxedo-yt6801-kmod package
-echo "=== Contents of tuxedo-yt6801-kmod package ==="
-rpm -qlp ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm | head -20
+# Instead of using their build script, let's manually build the module following the spec file approach
+echo "Building yt6801 module manually for kernel ${KERNEL_VERSION}..."
 
-# Get the built RPM filename (note: package is named tuxedo-yt6801-kmod, not kmod-tuxedo-yt6801)
-YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm)
+# Create build directory
+BUILD_DIR="/tmp/yt6801_build_${KERNEL_VERSION}"
+mkdir -p "${BUILD_DIR}"
 
-# Try to install the package directly first
-if rpm-ostree install "${YT6801_RPM}"; then
-    echo "yt6801 driver installed successfully without workaround"
-else
-    echo "Failed to install directly, applying workaround for bogus dependency..."
-    # Workaround for bogus dependency - rebuild the rpm without the kmod-tuxedo-yt6801-common dependency
-    rpmrebuild --batch --notest-install --change-spec-requires="sed '/^Requires:.*kmod-tuxedo-yt6801-common/d'" "${YT6801_RPM}"
-    
-    # Find the rebuilt RPM (rpmrebuild puts it in /root/rpmbuild/RPMS by default)
-    REBUILT_YT6801_RPM=$(ls /root/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm | head -1)
-    
-    # Install the rebuilt yt6801 driver
-    rpm-ostree install "${REBUILT_YT6801_RPM}"
-fi
+# Copy source files
+cp -a src/* "${BUILD_DIR}/"
 
-# Now check if the package contains pre-built modules or if we need to build them manually
-echo "Checking for pre-built modules in the installed package..."
-rpm -ql tuxedo-yt6801-kmod | grep -E "\.ko(\.xz|\.gz)?$" || echo "No pre-built modules found"
+# Build the module for our specific kernel
+cd "${BUILD_DIR}"
+make V=1 -C "/lib/modules/${KERNEL_VERSION}/build" M="${BUILD_DIR}" modules
 
-# Check if there's source code we need to build manually
-YT6801_SRC_DIR="/usr/src/tuxedo-yt6801"
-if [ -d "$YT6801_SRC_DIR" ] || [ -d "/usr/src/tuxedo-yt6801-*" ]; then
-    echo "Found source directory, building manually..."
-    
-    # Find the actual source directory
-    ACTUAL_SRC_DIR=$(find /usr/src -maxdepth 1 -name "tuxedo-yt6801*" -type d | head -1)
-    if [ -n "$ACTUAL_SRC_DIR" ]; then
-        echo "Building from source in: $ACTUAL_SRC_DIR"
-        cd "$ACTUAL_SRC_DIR"
-        
-        # Build the module
-        make clean
-        make KDIR="/lib/modules/${KERNEL_VERSION}/build"
-        
-        # Install the module
-        make install KDIR="/lib/modules/${KERNEL_VERSION}/build" INSTALL_MOD_PATH=""
-        
-        # Update module dependencies
-        depmod -a "${KERNEL_VERSION}"
-        
-        echo "Manual build completed"
-    fi
-else
-    echo "No source directory found, checking if this is a different type of package..."
-    
-    # List all files in the package to see what we actually got
-    echo "All files in tuxedo-yt6801-kmod package:"
-    rpm -ql tuxedo-yt6801-kmod
-fi
+# Install the module
+MODULE_INSTALL_DIR="/lib/modules/${KERNEL_VERSION}/extra/tuxedo-yt6801"
+mkdir -p "${MODULE_INSTALL_DIR}"
 
-# Final verification
-echo "Final check for yt6801 module..."
-find /lib/modules/${KERNEL_VERSION} -name "*yt6801*" -o -name "*tuxedo-yt6801*" | head -5
+# Find and install the built .ko files
+find "${BUILD_DIR}" -name "*.ko" -exec install -D -m 755 {} "${MODULE_INSTALL_DIR}/" \;
 
-# Also check if modinfo can find it
+# Update module dependencies
+depmod -a "${KERNEL_VERSION}"
+
+echo "yt6801 module installation completed"
+
+# Verify the module was built and installed
+echo "Verifying yt6801 module installation..."
+find /lib/modules/${KERNEL_VERSION}/extra -name "*yt6801*" | head -5
+
+# Check if modinfo can find it
 echo "Checking if module is available to modinfo..."
-modinfo yt6801 2>/dev/null || modinfo tuxedo-yt6801 2>/dev/null || echo "Module not found by modinfo"
+modinfo yt6801 2>/dev/null && echo "yt6801 module found!" || echo "yt6801 module not found by modinfo"
 
 cd /tmp
 
