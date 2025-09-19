@@ -24,6 +24,7 @@ systemctl enable /etc/systemd/system/fixtuxedo.service
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
 rpm-ostree install kmodtool
+rpm-ostree install rpmrebuild
 rpm-ostree install gcc make kernel-devel
 
 export HOME=/tmp
@@ -41,12 +42,38 @@ cd ..
 # Extract the Version value from the spec file
 export TD_VERSION=$(cat tuxedo-drivers-kmod/tuxedo-drivers-kmod-common.spec | grep -E '^Version:' | awk '{print $2}')
 
+# Get the architecture
+ARCH=$(uname -m)
 
-rpm-ostree install ~/rpmbuild/RPMS/x86_64/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm
+rpm-ostree install ~/rpmbuild/RPMS/${ARCH}/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm
 
 KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
 
 akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
+
+# Build and install tuxedo-yt6801 drivers
+cd /tmp
+
+git clone https://github.com/theCalcaholic/tuxedo-yt6801-kmod
+cd tuxedo-yt6801-kmod
+
+# Build the yt6801 kmod
+./build.sh
+
+# Get the built RPM filename
+YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-yt6801-*.rpm)
+
+# Workaround for bogus dependency - rebuild the rpm without the kmod-tuxedo-yt6801-common dependency
+# Use sed to create a temporary spec file without the problematic dependency
+rpmrebuild --batch --notest-install --change-spec-requires="sed '/^Requires:.*kmod-tuxedo-yt6801-common/d'" "${YT6801_RPM}"
+
+# Find the rebuilt RPM (rpmrebuild puts it in /root/rpmbuild/RPMS by default)
+REBUILT_YT6801_RPM=$(ls /root/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-yt6801-*.rpm | head -1)
+
+# Install the rebuilt yt6801 driver
+rpm-ostree install "${REBUILT_YT6801_RPM}"
+
+cd /tmp
 
 #Hacky workaround to make TCC install elsewhere
 mkdir -p /usr/share
