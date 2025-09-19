@@ -60,18 +60,23 @@ cd tuxedo-yt6801-kmod
 # Build the yt6801 kmod
 ./build.sh
 
-# Get the built RPM filename
-YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-yt6801-*.rpm)
+# Get the built RPM filename (note: package is named tuxedo-yt6801-kmod, not kmod-tuxedo-yt6801)
+YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm)
 
-# Workaround for bogus dependency - rebuild the rpm without the kmod-tuxedo-yt6801-common dependency
-# Use sed to create a temporary spec file without the problematic dependency
-rpmrebuild --batch --notest-install --change-spec-requires="sed '/^Requires:.*kmod-tuxedo-yt6801-common/d'" "${YT6801_RPM}"
-
-# Find the rebuilt RPM (rpmrebuild puts it in /root/rpmbuild/RPMS by default)
-REBUILT_YT6801_RPM=$(ls /root/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-yt6801-*.rpm | head -1)
-
-# Install the rebuilt yt6801 driver
-rpm-ostree install "${REBUILT_YT6801_RPM}"
+# Try to install the package directly first
+if rpm-ostree install "${YT6801_RPM}"; then
+    echo "yt6801 driver installed successfully without workaround"
+else
+    echo "Failed to install directly, applying workaround for bogus dependency..."
+    # Workaround for bogus dependency - rebuild the rpm without the kmod-tuxedo-yt6801-common dependency
+    rpmrebuild --batch --notest-install --change-spec-requires="sed '/^Requires:.*kmod-tuxedo-yt6801-common/d'" "${YT6801_RPM}"
+    
+    # Find the rebuilt RPM (rpmrebuild puts it in /root/rpmbuild/RPMS by default)
+    REBUILT_YT6801_RPM=$(ls /root/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm | head -1)
+    
+    # Install the rebuilt yt6801 driver
+    rpm-ostree install "${REBUILT_YT6801_RPM}"
+fi
 
 cd /tmp
 
