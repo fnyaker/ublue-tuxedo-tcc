@@ -67,7 +67,24 @@ BUILD_DIR="/tmp/yt6801_build_${KERNEL_VERSION}"
 mkdir -p "${BUILD_DIR}"
 
 # Copy source files
-cp -a src/* "${BUILD_DIR}/"
+echo "Checking repository structure..."
+ls -la
+echo "Contents of src directory (if it exists):"
+ls -la src/ || echo "No src directory found"
+
+# Let's check what directories/files are available
+if [ -d "src" ]; then
+    echo "Found src directory, copying files..."
+    cp -a src/* "${BUILD_DIR}/"
+elif [ -f "Makefile" ]; then
+    echo "Found Makefile in root, copying all source files..."
+    cp -a * "${BUILD_DIR}/"
+else
+    echo "Looking for source files..."
+    find . -name "*.c" -o -name "*.h" -o -name "Makefile" | head -10
+    echo "Copying all files to build directory..."
+    cp -a * "${BUILD_DIR}/"
+fi
 
 # Build the module for our specific kernel
 cd "${BUILD_DIR}"
