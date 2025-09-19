@@ -65,6 +65,10 @@ echo "=== YT6801 Build Results ==="
 ls -la ~/rpmbuild/RPMS/${ARCH}/
 echo "=== End Build Results ==="
 
+# Check what files are in the tuxedo-yt6801-kmod package
+echo "=== Contents of tuxedo-yt6801-kmod package ==="
+rpm -qlp ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm | head -20
+
 # Get the built RPM filename (note: package is named tuxedo-yt6801-kmod, not kmod-tuxedo-yt6801)
 YT6801_RPM=$(ls ~/rpmbuild/RPMS/${ARCH}/tuxedo-yt6801-kmod-*.rpm)
 
@@ -83,31 +87,48 @@ else
     rpm-ostree install "${REBUILT_YT6801_RPM}"
 fi
 
-# Now build the actual kernel module for the current kernel
-echo "Building yt6801 kernel module for current kernel..."
+# Now check if the package contains pre-built modules or if we need to build them manually
+echo "Checking for pre-built modules in the installed package..."
+rpm -ql tuxedo-yt6801-kmod | grep -E "\.ko(\.xz|\.gz)?$" || echo "No pre-built modules found"
 
-# First, let's see what akmod packages are available
-echo "Available akmod packages:"
-rpm -qa | grep akmod
-
-# Try to build with different possible names
-for kmod_name in "tuxedo-yt6801" "yt6801" "tuxedo-yt6801-kmod"; do
-    echo "Trying to build kmod: $kmod_name"
-    if akmods --force --kernels "${KERNEL_VERSION}" --kmod "$kmod_name" 2>/dev/null; then
-        echo "Successfully built $kmod_name"
-        break
-    else
-        echo "Failed to build $kmod_name"
+# Check if there's source code we need to build manually
+YT6801_SRC_DIR="/usr/src/tuxedo-yt6801"
+if [ -d "$YT6801_SRC_DIR" ] || [ -d "/usr/src/tuxedo-yt6801-*" ]; then
+    echo "Found source directory, building manually..."
+    
+    # Find the actual source directory
+    ACTUAL_SRC_DIR=$(find /usr/src -maxdepth 1 -name "tuxedo-yt6801*" -type d | head -1)
+    if [ -n "$ACTUAL_SRC_DIR" ]; then
+        echo "Building from source in: $ACTUAL_SRC_DIR"
+        cd "$ACTUAL_SRC_DIR"
+        
+        # Build the module
+        make clean
+        make KDIR="/lib/modules/${KERNEL_VERSION}/build"
+        
+        # Install the module
+        make install KDIR="/lib/modules/${KERNEL_VERSION}/build" INSTALL_MOD_PATH=""
+        
+        # Update module dependencies
+        depmod -a "${KERNEL_VERSION}"
+        
+        echo "Manual build completed"
     fi
-done
+else
+    echo "No source directory found, checking if this is a different type of package..."
+    
+    # List all files in the package to see what we actually got
+    echo "All files in tuxedo-yt6801-kmod package:"
+    rpm -ql tuxedo-yt6801-kmod
+fi
 
-# Verify the module was built
-echo "Checking for yt6801 module..."
-find /lib/modules -name "*yt6801*" -o -name "*tuxedo-yt6801*" | head -5
+# Final verification
+echo "Final check for yt6801 module..."
+find /lib/modules/${KERNEL_VERSION} -name "*yt6801*" -o -name "*tuxedo-yt6801*" | head -5
 
-# Also check what modules are available
-echo "All available modules in /lib/modules/${KERNEL_VERSION}:"
-find /lib/modules/${KERNEL_VERSION} -name "*.ko*" | grep -i yt6801 || echo "No yt6801 modules found"
+# Also check if modinfo can find it
+echo "Checking if module is available to modinfo..."
+modinfo yt6801 2>/dev/null || modinfo tuxedo-yt6801 2>/dev/null || echo "Module not found by modinfo"
 
 cd /tmp
 
