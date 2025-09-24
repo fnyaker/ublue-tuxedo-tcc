@@ -15,6 +15,9 @@ RELEASE="$(rpm -E %fedora)"
 # this installs a package from fedora repos
 rpm-ostree install tmux
 
+# ============ Some little Custom packages ===========
+rpm-ostree install gnome-disk-utility
+
 #Exec perms for symlink script
 chmod +x /usr/bin/fixtuxedo
 #And autorun
@@ -27,6 +30,8 @@ rpm-ostree install kmodtool
 rpm-ostree install rpmrebuild
 rpm-ostree install curl
 rpm-ostree install gcc make kernel-devel
+
+
 
 export HOME=/tmp
 
