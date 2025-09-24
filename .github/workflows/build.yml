@@ -4,11 +4,13 @@ on:
   pull_request:
     branches:
       - main
+      - blackaurora
   schedule:
     - cron: "05 10 * * 1,4"
   push:
     branches:
       - main
+      - blackaurora
     paths-ignore:
       - "**/README.md"
   workflow_dispatch:
@@ -58,8 +60,14 @@ jobs:
             else
               joined="default"
             fi
-            # Prefix with "tuxedo-"
-            image_name="tuxedo-${joined}"
+            
+            # Special case: if dir is BlackAurora, use "aurora-black" as image name
+            if [ "$dir" = "BlackAurora" ]; then
+              image_name="tuxedo-aurora-black"
+            else
+              # Prefix with "tuxedo-"
+              image_name="tuxedo-${joined}"
+            fi
             
             # Build a JSON entry for this Containerfile.
             entry=$(jq -n --arg ctx "Containerfiles/$dir" --arg file "$file" --arg name "$image_name" '{context: $ctx, containerfile: $file, image_name: $name}')
