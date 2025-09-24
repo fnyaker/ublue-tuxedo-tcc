@@ -4,11 +4,13 @@ on:
   pull_request:
     branches:
       - main
+      - blackaurora
   schedule:
     - cron: "05 10 * * 1,4"
   push:
     branches:
       - main
+      - blackaurora
     paths-ignore:
       - "**/README.md"
   workflow_dispatch:
