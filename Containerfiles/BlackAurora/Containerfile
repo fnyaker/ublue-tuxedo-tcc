@@ -52,7 +52,10 @@ COPY tuxedo.repo /etc/yum.repos.d/tuxedo.repo
 COPY fixtuxedo /usr/bin/fixtuxedo
 COPY fixtuxedo.service /etc/systemd/system/fixtuxedo.service
 
-COPY build.sh /tmp/build.sh
+COPY build-aurora-black.sh /tmp/build.sh
+
+RUN chmod +x /tmp/build.sh
+
 
 RUN mkdir -p /var/lib/alternatives && \
     /tmp/build.sh && \
