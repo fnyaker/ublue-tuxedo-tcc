@@ -31,9 +31,9 @@ systemctl enable /etc/systemd/system/fixtuxedo.service
 CURRENT_KERNEL=$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
 echo "Current kernel version: ${CURRENT_KERNEL}"
 
-# Check if kernel-devel is already installed and get its version
-INSTALLED_KERNEL_DEVEL=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' 2>/dev/null || echo "none")
-echo "Installed kernel-devel version: ${INSTALLED_KERNEL_DEVEL}"
+# Install kernel-devel-matched first to satisfy akmods dependencies
+echo "Installing kernel-devel-matched for current kernel: ${CURRENT_KERNEL}"
+rpm-ostree install "kernel-devel-matched-${CURRENT_KERNEL}"
 
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
@@ -42,41 +42,13 @@ rpm-ostree install rpmrebuild
 rpm-ostree install curl
 rpm-ostree install gcc make
 
-# Find what kernel versions are actually available in the system
-ALL_KERNELS=$(rpm -qa kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort -V)
-echo "Available kernel versions: ${ALL_KERNELS}"
+# Now install akmods - dependencies should be satisfied by kernel-devel-matched
+echo "Installing akmods..."
+rpm-ostree install akmods
 
-# Find what kernel-devel packages are available in repos
-echo "Checking available kernel-devel packages..."
-
-# Try to install akmods without strict dependencies first, then fix up dependencies
-rpm-ostree install --allow-inactive akmods || true
-
-# Get the actual kernel-devel version that's available or install one
-INSTALLED_KERNEL_DEVEL=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' 2>/dev/null || echo "none")
-
-if [ "${INSTALLED_KERNEL_DEVEL}" != "none" ]; then
-    echo "Using existing kernel-devel version: ${INSTALLED_KERNEL_DEVEL}"
-    KERNEL_VERSION="${INSTALLED_KERNEL_DEVEL}"
-else
-    # Try to install kernel-devel for any available kernel
-    for kernel_ver in ${ALL_KERNELS}; do
-        echo "Trying to install kernel-devel for ${kernel_ver}"
-        if rpm-ostree install "kernel-devel-${kernel_ver}"; then
-            KERNEL_VERSION="${kernel_ver}"
-            break
-        fi
-    done
-    
-    # If none of the specific versions work, just install the latest available
-    if [ -z "${KERNEL_VERSION}" ]; then
-        echo "Installing latest available kernel-devel"
-        rpm-ostree install kernel-devel
-        KERNEL_VERSION=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
-    fi
-fi
-
-echo "Final kernel version for build: ${KERNEL_VERSION}"
+# Set kernel version for build
+KERNEL_VERSION="${CURRENT_KERNEL}"
+echo "Using kernel version for build: ${KERNEL_VERSION}"
 
 # Ensure akmods is available - try different methods
 if ! rpm -q akmods >/dev/null 2>&1; then
@@ -110,41 +82,9 @@ ARCH=$(uname -m)
 
 rpm-ostree install ~/rpmbuild/RPMS/${ARCH}/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm
 
-# KERNEL_VERSION was already set above based on available kernel-devel
+# Build kernel modules using akmods
 echo "Building akmods for kernel version: ${KERNEL_VERSION}"
-
-# Try to use akmods if available, otherwise build directly
-if [ "${USE_DIRECT_BUILD}" = "true" ] || ! command -v akmods >/dev/null 2>&1; then
-    echo "Building kernel modules directly without akmods..."
-    
-    # Build the tuxedo-drivers kernel modules directly
-    cd /tmp/tuxedo-drivers-kmod
-    
-    # Find the source directory
-    SRC_DIR=$(find . -name "src" -type d | head -1)
-    if [ -n "$SRC_DIR" ]; then
-        cd "$SRC_DIR"
-        echo "Building in directory: $(pwd)"
-        
-        # Build for the available kernel
-        make -C "/lib/modules/${KERNEL_VERSION}/build" M="$(pwd)" modules
-        
-        # Install the modules
-        make -C "/lib/modules/${KERNEL_VERSION}/build" M="$(pwd)" modules_install
-        
-        # Update module dependencies
-        depmod -a "${KERNEL_VERSION}"
-        
-        echo "Tuxedo drivers built and installed directly"
-    else
-        echo "Could not find source directory for direct build"
-    fi
-    
-    cd /tmp
-else
-    # Use akmods
-    akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
-fi
+akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 
 
 
