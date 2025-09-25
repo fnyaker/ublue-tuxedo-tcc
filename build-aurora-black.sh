@@ -27,50 +27,12 @@ chmod +x /usr/bin/fixtuxedo
 systemctl enable /etc/systemd/system/fixtuxedo.service
 
 #Build and install tuxedo drivers
-# Get current kernel version
-CURRENT_KERNEL=$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
-echo "Current kernel version: ${CURRENT_KERNEL}"
-
-# Check if kernel-devel is already installed and use that version
-EXISTING_KERNEL_DEVEL=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' 2>/dev/null || echo "none")
-echo "Existing kernel-devel version: ${EXISTING_KERNEL_DEVEL}"
-
-if [ "${EXISTING_KERNEL_DEVEL}" != "none" ]; then
-    # Use the existing kernel-devel version
-    echo "Using existing kernel-devel version for build: ${EXISTING_KERNEL_DEVEL}"
-    KERNEL_VERSION="${EXISTING_KERNEL_DEVEL}"
-    # Install kernel-devel-matched for the existing version
-    rpm-ostree install "kernel-devel-matched-${EXISTING_KERNEL_DEVEL}"
-else
-    # No existing kernel-devel, install for current kernel
-    echo "Installing kernel-devel-matched for current kernel: ${CURRENT_KERNEL}"
-    rpm-ostree install "kernel-devel-matched-${CURRENT_KERNEL}"
-    KERNEL_VERSION="${CURRENT_KERNEL}"
-fi
-
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
 rpm-ostree install kmodtool
 rpm-ostree install rpmrebuild
 rpm-ostree install curl
-rpm-ostree install gcc make
-
-# Now install akmods - dependencies should be satisfied by kernel-devel-matched
-echo "Installing akmods..."
-rpm-ostree install akmods
-
-# KERNEL_VERSION is already set above based on available kernel-devel
-echo "Using kernel version for build: ${KERNEL_VERSION}"
-
-# Ensure akmods is available - try different methods
-if ! rpm -q akmods >/dev/null 2>&1; then
-    echo "akmods not installed, trying to install..."
-    # Try without dependencies first
-    rpm-ostree install --nodeps akmods || rpm-ostree install akmods || {
-        echo "Failed to install akmods, will try to build modules directly"
-        USE_DIRECT_BUILD=true
-    }
-fi
+rpm-ostree install gcc make kernel-devel
 
 
 
@@ -94,8 +56,8 @@ ARCH=$(uname -m)
 
 rpm-ostree install ~/rpmbuild/RPMS/${ARCH}/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm
 
-# Build kernel modules using akmods
-echo "Building akmods for kernel version: ${KERNEL_VERSION}"
+KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
+
 akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 
 
