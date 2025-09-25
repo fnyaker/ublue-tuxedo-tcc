@@ -24,19 +24,32 @@ chmod +x /usr/bin/fixtuxedo
 systemctl enable /etc/systemd/system/fixtuxedo.service
 
 #Build and install tuxedo drivers
-# Get current kernel version and install matching kernel-devel
+# Get current kernel version
 CURRENT_KERNEL=$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
 echo "Current kernel version: ${CURRENT_KERNEL}"
 
-# Install the exact kernel-devel package that matches the current kernel
+# Check if kernel-devel is already installed and get its version
+INSTALLED_KERNEL_DEVEL=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' 2>/dev/null || echo "none")
+echo "Installed kernel-devel version: ${INSTALLED_KERNEL_DEVEL}"
+
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
 rpm-ostree install kmodtool
 rpm-ostree install rpmrebuild
 rpm-ostree install curl
 rpm-ostree install gcc make
-rpm-ostree install "kernel-devel-${CURRENT_KERNEL}"
-# Install akmods after kernel-devel is properly installed
+
+# Use the installed kernel-devel version if it exists, otherwise install for current kernel
+if [ "${INSTALLED_KERNEL_DEVEL}" != "none" ]; then
+    echo "Using existing kernel-devel version: ${INSTALLED_KERNEL_DEVEL}"
+    KERNEL_VERSION="${INSTALLED_KERNEL_DEVEL}"
+else
+    echo "Installing kernel-devel for current kernel: ${CURRENT_KERNEL}"
+    rpm-ostree install "kernel-devel-${CURRENT_KERNEL}"
+    KERNEL_VERSION="${CURRENT_KERNEL}"
+fi
+
+# Install akmods after kernel-devel is properly available
 rpm-ostree install akmods
 
 
@@ -61,8 +74,7 @@ ARCH=$(uname -m)
 
 rpm-ostree install ~/rpmbuild/RPMS/${ARCH}/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.${ARCH}.rpm ~/rpmbuild/RPMS/${ARCH}/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.${ARCH}.rpm
 
-# Use the kernel version we already detected
-KERNEL_VERSION="${CURRENT_KERNEL}"
+# KERNEL_VERSION was already set above based on available kernel-devel
 echo "Building akmods for kernel version: ${KERNEL_VERSION}"
 
 akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
