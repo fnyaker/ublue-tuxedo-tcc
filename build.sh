@@ -28,9 +28,22 @@ systemctl enable /etc/systemd/system/fixtuxedo.service
 CURRENT_KERNEL=$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')
 echo "Current kernel version: ${CURRENT_KERNEL}"
 
-# Install kernel-devel-matched first to satisfy akmods dependencies
-echo "Installing kernel-devel-matched for current kernel: ${CURRENT_KERNEL}"
-rpm-ostree install "kernel-devel-matched-${CURRENT_KERNEL}"
+# Check if kernel-devel is already installed and use that version
+EXISTING_KERNEL_DEVEL=$(rpm -q kernel-devel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' 2>/dev/null || echo "none")
+echo "Existing kernel-devel version: ${EXISTING_KERNEL_DEVEL}"
+
+if [ "${EXISTING_KERNEL_DEVEL}" != "none" ]; then
+    # Use the existing kernel-devel version
+    echo "Using existing kernel-devel version for build: ${EXISTING_KERNEL_DEVEL}"
+    KERNEL_VERSION="${EXISTING_KERNEL_DEVEL}"
+    # Install kernel-devel-matched for the existing version
+    rpm-ostree install "kernel-devel-matched-${EXISTING_KERNEL_DEVEL}"
+else
+    # No existing kernel-devel, install for current kernel
+    echo "Installing kernel-devel-matched for current kernel: ${CURRENT_KERNEL}"
+    rpm-ostree install "kernel-devel-matched-${CURRENT_KERNEL}"
+    KERNEL_VERSION="${CURRENT_KERNEL}"
+fi
 
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
@@ -43,8 +56,7 @@ rpm-ostree install gcc make
 echo "Installing akmods..."
 rpm-ostree install akmods
 
-# Set kernel version for build
-KERNEL_VERSION="${CURRENT_KERNEL}"
+# KERNEL_VERSION is already set above based on available kernel-devel
 echo "Using kernel version for build: ${KERNEL_VERSION}"
 
 export HOME=/tmp
