@@ -5,6 +5,39 @@ set -ouex pipefail
 RELEASE="$(rpm -E %fedora)"
 
 
+# Debug helper: print decorated info about important directories and env
+debug_rpmbuild_state() {
+    echo
+    echo "================================================================"
+    echo "= RPMS BUILD DEBUG: $(date +'%Y-%m-%d %T %z')"
+    echo "================================================================"
+    echo "PWD: $(pwd)"
+    echo "USER: $(id -un) UID: $(id -u)"
+    echo "HOME: ${HOME:-}"
+    echo "Environment snippets: RPMBUILD_HOME=${RPMBUILD_HOME:-}, HOME=${HOME:-}, RELEASE=${RELEASE:-}"
+    echo
+    echo "-- /tmp listing --"
+    ls -la /tmp || true
+    echo
+    echo "-- /tmp/rpmbuild top-level --"
+    ls -la /tmp/rpmbuild || true
+    echo
+    for d in /tmp/rpmbuild/{SOURCES,BUILD,BUILDROOT,RPMS,SRPMS,SPECS}; do
+        echo "-- $d --"
+        if [ -e "$d" ]; then
+            ls -la "$d" || true
+        else
+            echo "(not present)"
+        fi
+        echo
+    done
+
+    echo "-- find /tmp/rpmbuild (depth 3) --"
+    find /tmp/rpmbuild -maxdepth 3 -ls 2>/dev/null || true
+    echo "================================================================"
+    echo
+}
+
 ### Install packages
 
 # Packages can be installed from any enabled yum repo on the image.
@@ -40,12 +73,25 @@ export HOME=/tmp
 
 cd /tmp
 
+
+echo "\n[build-aurora-black.sh] Debug: state BEFORE rpmdev-setuptree"
+debug_rpmbuild_state
 rpmdev-setuptree
+echo "\n[build-aurora-black.sh] Debug: state AFTER rpmdev-setuptree"
+debug_rpmbuild_state
 
 git clone https://github.com/stoeps13/tuxedo-drivers-kmod
 
+echo "\n[build-aurora-black.sh] Debug: state AFTER git clone (before entering repo)"
+debug_rpmbuild_state
+
 cd tuxedo-drivers-kmod/
+
+echo "\n[build-aurora-black.sh] Debug: state BEFORE tuxedo-drivers-kmod/build.sh"
+debug_rpmbuild_state
 ./build.sh
+echo "\n[build-aurora-black.sh] Debug: state AFTER tuxedo-drivers-kmod/build.sh"
+debug_rpmbuild_state
 cd ..
 
 # Extract the Version value from the spec file
