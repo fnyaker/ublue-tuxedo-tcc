@@ -80,7 +80,7 @@ rpmdev-setuptree
 echo "\n[build-aurora-black.sh] Debug: state AFTER rpmdev-setuptree"
 debug_rpmbuild_state
 
-git clone https://github.com/stoeps13/tuxedo-drivers-kmod
+git clone https://github.com/fnyaker/tuxedo-drivers-kmod
 
 echo "\n[build-aurora-black.sh] Debug: state AFTER git clone (before entering repo)"
 debug_rpmbuild_state
