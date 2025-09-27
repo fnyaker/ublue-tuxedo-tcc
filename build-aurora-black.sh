@@ -45,6 +45,31 @@ rpmdev-setuptree
 git clone https://github.com/stoeps13/tuxedo-drivers-kmod
 
 cd tuxedo-drivers-kmod/
+
+# Manually download the source if spectool fails
+TD_VERSION_FOR_DOWNLOAD=$(grep "Version:" tuxedo-drivers-kmod.spec | awk '{print $2}')
+SOURCE_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-drivers/-/archive/refs/tags/v${TD_VERSION_FOR_DOWNLOAD}.tar.gz"
+SOURCE_FILE="$HOME/rpmbuild/SOURCES/v${TD_VERSION_FOR_DOWNLOAD}.tar.gz"
+
+# Create SOURCES directory
+mkdir -p $HOME/rpmbuild/SOURCES/
+
+# Download source if it doesn't exist
+if [ ! -f "${SOURCE_FILE}" ]; then
+    echo "Downloading tuxedo-drivers source from ${SOURCE_URL}"
+    curl -L "${SOURCE_URL}" -o "${SOURCE_FILE}"
+fi
+
+# Verify the download was successful
+if [ ! -f "${SOURCE_FILE}" ]; then
+    echo "Failed to download source file. Trying alternative method..."
+    # Try using spectool first, then fallback to manual download
+    spectool -g -R $HOME/rpmbuild/SPECS/tuxedo-drivers-kmod.spec || {
+        echo "spectool failed, downloading manually..."
+        curl -L "${SOURCE_URL}" -o "${SOURCE_FILE}"
+    }
+fi
+
 ./build.sh
 cd ..
 
