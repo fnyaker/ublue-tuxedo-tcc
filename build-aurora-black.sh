@@ -45,56 +45,6 @@ rpmdev-setuptree
 git clone https://github.com/stoeps13/tuxedo-drivers-kmod
 
 cd tuxedo-drivers-kmod/
-
-# Manually download the source if spectool fails
-TD_VERSION_FOR_DOWNLOAD=$(grep "Version:" tuxedo-drivers-kmod.spec | awk '{print $2}')
-
-# Try the correct GitLab archive URL format
-SOURCE_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-drivers/-/archive/v${TD_VERSION_FOR_DOWNLOAD}/tuxedo-drivers-v${TD_VERSION_FOR_DOWNLOAD}.tar.gz"
-SOURCE_FILE="$HOME/rpmbuild/SOURCES/v${TD_VERSION_FOR_DOWNLOAD}.tar.gz"
-
-# Create SOURCES directory
-mkdir -p $HOME/rpmbuild/SOURCES/
-
-# Always try spectool first as it handles the URL correctly
-echo "Trying spectool to download source..."
-spectool -g -R $HOME/rpmbuild/SPECS/tuxedo-drivers-kmod.spec || {
-    echo "spectool failed, trying manual download..."
-    
-    # Check if the file exists and verify it's a valid gzip
-    if [ -f "${SOURCE_FILE}" ]; then
-        echo "Checking if existing file is valid..."
-        if ! file "${SOURCE_FILE}" | grep -q "gzip compressed"; then
-            echo "Existing file is not valid gzip, removing it..."
-            rm -f "${SOURCE_FILE}"
-        fi
-    fi
-    
-    # Try manual download with better error handling
-    echo "Downloading tuxedo-drivers source from ${SOURCE_URL}"
-    if curl -L -f -o "${SOURCE_FILE}" "${SOURCE_URL}"; then
-        # Verify the downloaded file is actually a gzip file
-        if file "${SOURCE_FILE}" | grep -q "gzip compressed"; then
-            echo "Source downloaded successfully and verified as gzip"
-        else
-            echo "Downloaded file is not a valid gzip file. Content:"
-            head -20 "${SOURCE_FILE}"
-            echo "Trying alternative URL formats..."
-            
-            # Try alternative URL format
-            ALT_URL="https://gitlab.com/tuxedocomputers/development/packages/tuxedo-drivers/-/archive/v${TD_VERSION_FOR_DOWNLOAD}.tar.gz"
-            echo "Trying alternative URL: ${ALT_URL}"
-            curl -L -f -o "${SOURCE_FILE}" "${ALT_URL}" || {
-                echo "All download attempts failed. Cannot proceed with build."
-                exit 1
-            }
-        fi
-    else
-        echo "Failed to download source file from ${SOURCE_URL}"
-        exit 1
-    fi
-}
-
 ./build.sh
 cd ..
 
