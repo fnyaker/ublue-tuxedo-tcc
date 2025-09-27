@@ -61,9 +61,12 @@ jobs:
               joined="default"
             fi
             
-            # Special case: if dir is BlackAurora, use "aurora-black" as image name
+            # Special cases: map some Black* directories to custom image names
             if [ "$dir" = "BlackAurora" ]; then
               image_name="tuxedo-aurora-black"
+            elif [ "$dir" = "BlackBluefin" ]; then
+              # Mirror the BlackAurora exception for BlackBluefin
+              image_name="tuxedo-bluefin-black"
             else
               # Prefix with "tuxedo-"
               image_name="tuxedo-${joined}"
@@ -94,6 +97,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
     permissions:
       contents: read
       packages: write
