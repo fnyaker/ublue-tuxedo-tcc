@@ -54,7 +54,7 @@ rpm-ostree install gnome-disk-utility
 # ============ Aurora Black Specific: Wireshark ===========
 rpm-ostree install wireshark
 rpm-ostree install aircrack-ng
-
+rpm-ostree install wireless-tools
 
 
 #Exec perms for symlink script
