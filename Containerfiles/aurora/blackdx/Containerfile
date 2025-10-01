@@ -45,18 +45,33 @@ FROM ghcr.io/ublue-os/${SOURCE_IMAGE}${SOURCE_SUFFIX}:${SOURCE_TAG}
 
 
 ### 3. MODIFICATIONS
-## make modifications desired in your image and install packages by modifying the build.sh script
-## the following RUN directive does all the things required to run "build.sh" as recommended.
+## make modifications desired in your image and install packages by modifying the build scripts
+## the following RUN directives do all the things required to run the build scripts as recommended.
 
 COPY tuxedo.repo /etc/yum.repos.d/tuxedo.repo
 COPY fixtuxedo /usr/bin/fixtuxedo
 COPY fixtuxedo.service /etc/systemd/system/fixtuxedo.service
 
-COPY build.sh /tmp/build.sh
+# Copy all build scripts
+COPY build-base.sh /tmp/build-base.sh
+COPY build_tuxedo.sh /tmp/build_tuxedo.sh
+COPY build_black.sh /tmp/build_black.sh
 
+RUN chmod +x /tmp/build-base.sh /tmp/build_tuxedo.sh /tmp/build_black.sh
+
+# Run base utilities installation
 RUN mkdir -p /var/lib/alternatives && \
-    /tmp/build.sh && \
+    /tmp/build-base.sh && \
     ostree container commit
+
+# Run Tuxedo drivers and control center installation
+RUN /tmp/build_tuxedo.sh && \
+    ostree container commit
+
+# Run Black variant specific packages installation
+RUN /tmp/build_black.sh && \
+    ostree container commit
+
 ## NOTES:
 # - /var/lib/alternatives is required to prevent failure with some RPM installs
 # - All RUN commands must end with ostree container commit

@@ -50,25 +50,37 @@ jobs:
             
             # Split the directory path into parts.
             IFS='/' read -r -a parts <<< "$dir"
-            # If the last part is "base", remove it.
-            if [ "${parts[-1]}" = "base" ]; then
-              unset 'parts[${#parts[@]}-1]'
-            fi
-            # Join the remaining parts with a hyphen.
-            if [ ${#parts[@]} -gt 0 ]; then
-              joined=$(IFS=-; echo "${parts[*]}")
-            else
-              joined="default"
-            fi
             
-            # Special cases: map some Black* directories to custom image names
-            if [ "$dir" = "BlackAurora" ]; then
-              image_name="tuxedo-aurora-black"
-            elif [ "$dir" = "BlackBluefin" ]; then
-              # Mirror the BlackAurora exception for BlackBluefin
-              image_name="tuxedo-bluefin-black"
+            # Build image name based on hierarchical structure
+            # Format: tuxedo-{base}-{variant}
+            # Examples:
+            #   aurora/dx        -> tuxedo-aurora-dx
+            #   aurora/blackdx   -> tuxedo-aurora-black
+            #   aurora/nodrivers -> tuxedo-aurora-custom
+            #   bluefin/dx       -> tuxedo-bluefin-dx
+            #   bluefin/blackdx  -> tuxedo-bluefin-black
+            #   bluefin/nodrivers -> tuxedo-bluefin-custom
+            
+            if [ ${#parts[@]} -eq 2 ]; then
+              # Two-level structure: base/variant
+              base="${parts[0]}"
+              variant="${parts[1]}"
+              
+              # Map variant names to final image names
+              case "$variant" in
+                "blackdx")
+                  image_name="tuxedo-${base}-black"
+                  ;;
+                "nodrivers")
+                  image_name="tuxedo-${base}-custom"
+                  ;;
+                *)
+                  image_name="tuxedo-${base}-${variant}"
+                  ;;
+              esac
             else
-              # Prefix with "tuxedo-"
+              # Fallback: join all parts with hyphen for any other structure
+              joined=$(IFS=-; echo "${parts[*]}")
               image_name="tuxedo-${joined}"
             fi
             

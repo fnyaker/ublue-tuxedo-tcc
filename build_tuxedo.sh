@@ -4,7 +4,6 @@ set -ouex pipefail
 
 RELEASE="$(rpm -E %fedora)"
 
-
 # Debug helper: print decorated info about important directories and env
 debug_rpmbuild_state() {
     echo
@@ -38,31 +37,9 @@ debug_rpmbuild_state() {
     echo
 }
 
-### Install packages
-
-# Packages can be installed from any enabled yum repo on the image.
-# RPMfusion repos are available by default in ublue main images
-# List of rpmfusion packages can be found here:
-# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/39/x86_64/repoview/index.html&protocol=https&redirect=1
-
-# this installs a package from fedora repos
-rpm-ostree install tmux
-
-# ============ Some little Custom packages ===========
-rpm-ostree install gnome-disk-utility
-
-# ============ Aurora Black Specific: Wireshark ===========
-rpm-ostree install wireshark
-rpm-ostree install aircrack-ng
-rpm-ostree install wireless-tools
-
-
-#Exec perms for symlink script
-chmod +x /usr/bin/fixtuxedo
-#And autorun
-systemctl enable /etc/systemd/system/fixtuxedo.service
-
-#Build and install tuxedo drivers
+# ============================================================
+# Install build dependencies for Tuxedo drivers
+# ============================================================
 rpm-ostree install rpm-build
 rpm-ostree install rpmdevtools
 rpm-ostree install kmodtool
@@ -70,46 +47,51 @@ rpm-ostree install rpmrebuild
 rpm-ostree install curl
 rpm-ostree install gcc make kernel-devel
 
+# ============================================================
+# Setup fixtuxedo script and service
+# ============================================================
+chmod +x /usr/bin/fixtuxedo
+systemctl enable /etc/systemd/system/fixtuxedo.service
 
-
+# ============================================================
+# Build and install tuxedo-drivers-kmod
+# ============================================================
 export HOME=/tmp
-
 cd /tmp
 
-
-echo "\n[build-aurora-black.sh] Debug: state BEFORE rpmdev-setuptree"
+echo "\n[build_tuxedo.sh] Debug: state BEFORE rpmdev-setuptree"
 debug_rpmbuild_state
 rpmdev-setuptree
-echo "\n[build-aurora-black.sh] Debug: state AFTER rpmdev-setuptree"
+echo "\n[build_tuxedo.sh] Debug: state AFTER rpmdev-setuptree"
 debug_rpmbuild_state
 
 git clone https://github.com/fnyaker/tuxedo-drivers-kmod
 
-echo "\n[build-aurora-black.sh] Debug: state AFTER git clone (before entering repo)"
+echo "\n[build_tuxedo.sh] Debug: state AFTER git clone (before entering repo)"
 debug_rpmbuild_state
 
 cd tuxedo-drivers-kmod/
 
-echo "\n[build-aurora-black.sh] Debug: state BEFORE tuxedo-drivers-kmod/build.sh"
+echo "\n[build_tuxedo.sh] Debug: state BEFORE tuxedo-drivers-kmod/build.sh"
 debug_rpmbuild_state
 ./build.sh
-echo "\n[build-aurora-black.sh] Debug: state AFTER tuxedo-drivers-kmod/build.sh"
+echo "\n[build_tuxedo.sh] Debug: state AFTER tuxedo-drivers-kmod/build.sh"
 debug_rpmbuild_state
 cd ..
 
 # Extract the Version value from the spec file
 export TD_VERSION=$(cat tuxedo-drivers-kmod/tuxedo-drivers-kmod-common.spec | grep -E '^Version:' | awk '{print $2}')
 
-
+# Install the built RPMs
 rpm-ostree install ~/rpmbuild/RPMS/x86_64/akmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/tuxedo-drivers-kmod-common-$TD_VERSION-1.fc42.x86_64.rpm ~/rpmbuild/RPMS/x86_64/kmod-tuxedo-drivers-$TD_VERSION-1.fc42.x86_64.rpm
 
 KERNEL_VERSION="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
 
 akmods --force --kernels "${KERNEL_VERSION}" --kmod "tuxedo-drivers-kmod"
 
-
-
-# Build and install tuxedo-yt6801 drivers
+# ============================================================
+# Build and install tuxedo-yt6801 network driver
+# ============================================================
 cd /tmp
 
 # Use the correct fixed repository that works with newer kernels (6.15+)
@@ -164,9 +146,12 @@ find /lib/modules/${KERNEL_VERSION}/extra -name "*yt6801*" | head -5
 echo "Checking if module is available to modinfo..."
 modinfo yt6801 2>/dev/null && echo "yt6801 module found!" || echo "yt6801 module not found by modinfo"
 
+# ============================================================
+# Install and configure Tuxedo Control Center
+# ============================================================
 cd /tmp
 
-#Hacky workaround to make TCC install elsewhere
+# Hacky workaround to make TCC install elsewhere
 mkdir -p /usr/share
 rm /opt
 ln -s /usr/share /opt
@@ -185,13 +170,6 @@ sed -i 's|/opt|/usr/share|g' /etc/systemd/system/tccd.service
 sed -i 's|/opt|/usr/share|g' /usr/share/applications/tuxedo-control-center.desktop
 
 systemctl enable tccd.service
-
 systemctl enable tccd-sleep.service
 
-# this would install a package from rpmfusion
-# rpm-ostree install vlc
-
-#### Example for enabling a System Unit File
-
-
-systemctl enable podman.socket
+echo "Tuxedo drivers, yt6801, and Control Center installation completed!"
