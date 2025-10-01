@@ -51,10 +51,9 @@ FROM ghcr.io/ublue-os/${SOURCE_IMAGE}${SOURCE_SUFFIX}:${SOURCE_TAG}
 # Copy only base build script (no Tuxedo drivers, no fixtuxedo service)
 COPY build-base.sh /tmp/build-base.sh
 
-RUN chmod +x /tmp/build-base.sh
-
-# Run base utilities installation only
-RUN mkdir -p /var/lib/alternatives && \
+# Make script executable and run base utilities installation in one layer
+RUN chmod +x /tmp/build-base.sh && \
+    mkdir -p /var/lib/alternatives && \
     /tmp/build-base.sh && \
     ostree container commit
 

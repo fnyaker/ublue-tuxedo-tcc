@@ -57,19 +57,12 @@ COPY build-base.sh /tmp/build-base.sh
 COPY build_tuxedo.sh /tmp/build_tuxedo.sh
 COPY build_black.sh /tmp/build_black.sh
 
-RUN chmod +x /tmp/build-base.sh /tmp/build_tuxedo.sh /tmp/build_black.sh
-
-# Run base utilities installation
-RUN mkdir -p /var/lib/alternatives && \
+# Make scripts executable and run all installations in one layer
+RUN chmod +x /tmp/build-base.sh /tmp/build_tuxedo.sh /tmp/build_black.sh && \
+    mkdir -p /var/lib/alternatives && \
     /tmp/build-base.sh && \
-    ostree container commit
-
-# Run Tuxedo drivers and control center installation
-RUN /tmp/build_tuxedo.sh && \
-    ostree container commit
-
-# Run Black variant specific packages installation
-RUN /tmp/build_black.sh && \
+    /tmp/build_tuxedo.sh && \
+    /tmp/build_black.sh && \
     ostree container commit
 ## NOTES:
 # - /var/lib/alternatives is required to prevent failure with some RPM installs

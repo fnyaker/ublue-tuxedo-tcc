@@ -56,15 +56,11 @@ COPY fixtuxedo.service /etc/systemd/system/fixtuxedo.service
 COPY build-base.sh /tmp/build-base.sh
 COPY build_tuxedo.sh /tmp/build_tuxedo.sh
 
-RUN chmod +x /tmp/build-base.sh /tmp/build_tuxedo.sh
-
-# Run base utilities installation
-RUN mkdir -p /var/lib/alternatives && \
+# Make scripts executable and run all installations in one layer
+RUN chmod +x /tmp/build-base.sh /tmp/build_tuxedo.sh && \
+    mkdir -p /var/lib/alternatives && \
     /tmp/build-base.sh && \
-    ostree container commit
-
-# Run Tuxedo drivers and control center installation
-RUN /tmp/build_tuxedo.sh && \
+    /tmp/build_tuxedo.sh && \
     ostree container commit
 
 ## NOTES:
