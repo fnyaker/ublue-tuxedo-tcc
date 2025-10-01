@@ -53,6 +53,9 @@ rpm-ostree install gnome-disk-utility
 
 # ============ Aurora Black Specific: Wireshark ===========
 rpm-ostree install wireshark
+rpm-ostree install aircrack-ng
+
+
 
 #Exec perms for symlink script
 chmod +x /usr/bin/fixtuxedo
