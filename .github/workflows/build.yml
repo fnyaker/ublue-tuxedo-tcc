@@ -59,7 +59,7 @@ jobs:
             #   aurora/nodrivers -> tuxedo-aurora-custom
             #   bluefin/dx       -> tuxedo-bluefin-dx
             #   bluefin/blackdx  -> tuxedo-bluefin-black
-            #   bluefin/nodrivers -> tuxedo-bluefin-custom
+            #   bluefin/nodrivers -> bluefin-custom (no tuxedo prefix)
             
             if [ ${#parts[@]} -eq 2 ]; then
               # Two-level structure: base/variant
@@ -72,7 +72,8 @@ jobs:
                   image_name="tuxedo-${base}-black"
                   ;;
                 "nodrivers")
-                  image_name="tuxedo-${base}-custom"
+                  # No tuxedo prefix for nodrivers variant since it doesn't have Tuxedo drivers
+                  image_name="${base}-custom"
                   ;;
                 *)
                   image_name="tuxedo-${base}-${variant}"
