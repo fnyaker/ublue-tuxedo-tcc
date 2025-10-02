@@ -12,6 +12,7 @@ RELEASE="$(rpm -E %fedora)"
 # ============================================================
 
 echo "Installing base utilities and configurations..."
+df -h
 
 # ============ Base Custom Utilities ===========
 rpm-ostree install tmux
